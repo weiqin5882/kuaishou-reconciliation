@@ -75,7 +75,7 @@ def detect_columns(df, is_official=True):
     result['status'] = find_column(status_patterns, columns) if is_official else None
     result['product'] = find_column(product_patterns, columns)
     result['amount'] = find_column(amount_patterns, columns)
-    result['cost'] = find_column(cost_patterns, columns) if not is_official else None
+    result['cost'] = find_column(cost_patterns, columns)
     
     return result, columns
 
