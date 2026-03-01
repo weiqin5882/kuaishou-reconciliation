@@ -261,7 +261,12 @@ def generate_summary(result_df):
 def export_to_excel(result_df, summary, filename):
     """导出结果到 Excel"""
     try:
-        # 添加序号列
+        # 确保数值列是数字类型
+        for col in ['销售额', '成本', '利润']:
+            if col in result_df.columns:
+                result_df[col] = pd.to_numeric(result_df[col], errors='coerce').fillna(0)
+        
+        # 重置索引并添加序号列
         result_df = result_df.reset_index(drop=True)
         result_df.insert(0, '序号', range(1, len(result_df) + 1))
         
@@ -308,30 +313,79 @@ def export_to_excel(result_df, summary, filename):
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = thin_border
         
-        # 写入数据
-        for row_idx, row_data in enumerate(result_df.itertuples(index=False), 2):
-            is_abnormal = row_data.状态 == '异常'
-            is_loss = row_data.利润 < 0
+        # 写入数据 - 使用 iloc 避免列名问题
+        for row_idx in range(len(result_df)):
+            row_data = result_df.iloc[row_idx]
+            is_abnormal = str(row_data['状态']) == '异常'
+            is_loss = float(row_data['利润']) < 0
             
-            for col_idx, value in enumerate(row_data, 1):
-                cell = ws.cell(row=row_idx, column=col_idx, value=value)
-                cell.border = thin_border
-                cell.alignment = Alignment(horizontal='center' if col_idx in [1, 4, 5, 6, 7] else 'left', 
-                                         vertical='center')
-                
-                # 数值格式化
-                if col_idx in [4, 5, 6]:  # 销售额、成本、利润
-                    cell.number_format = '¥#,##0.00'
-                
-                # 异常行高亮
-                if is_abnormal:
-                    cell.fill = abnormal_fill
-                
-                # 亏损订单红色字体（利润列）
-                if col_idx == 6 and is_loss:
-                    cell.font = red_font
-                else:
-                    cell.font = normal_font
+            # 序号
+            cell = ws.cell(row=row_idx + 2, column=1, value=int(row_data['序号']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.font = normal_font
+            
+            # 订单号
+            cell = ws.cell(row=row_idx + 2, column=2, value=str(row_data['订单号']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='left', vertical='center')
+            cell.font = normal_font
+            if is_abnormal:
+                cell.fill = abnormal_fill
+            
+            # 商品名称
+            cell = ws.cell(row=row_idx + 2, column=3, value=str(row_data['商品名称']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='left', vertical='center')
+            cell.font = normal_font
+            if is_abnormal:
+                cell.fill = abnormal_fill
+            
+            # 销售额
+            cell = ws.cell(row=row_idx + 2, column=4, value=float(row_data['销售额']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.number_format = '¥#,##0.00'
+            cell.font = normal_font
+            if is_abnormal:
+                cell.fill = abnormal_fill
+            
+            # 成本
+            cell = ws.cell(row=row_idx + 2, column=5, value=float(row_data['成本']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.number_format = '¥#,##0.00'
+            cell.font = normal_font
+            if is_abnormal:
+                cell.fill = abnormal_fill
+            
+            # 利润
+            cell = ws.cell(row=row_idx + 2, column=6, value=float(row_data['利润']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.number_format = '¥#,##0.00'
+            if is_loss:
+                cell.font = red_font
+            else:
+                cell.font = normal_font
+            if is_abnormal:
+                cell.fill = abnormal_fill
+            
+            # 状态
+            cell = ws.cell(row=row_idx + 2, column=7, value=str(row_data['状态']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.font = normal_font
+            if is_abnormal:
+                cell.fill = abnormal_fill
+            
+            # 备注
+            cell = ws.cell(row=row_idx + 2, column=8, value=str(row_data['备注']))
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='left', vertical='center')
+            cell.font = normal_font
+            if is_abnormal:
+                cell.fill = abnormal_fill
         
         # 添加空行
         current_row = len(result_df) + 3
