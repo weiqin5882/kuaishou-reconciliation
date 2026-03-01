@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快手订单对账与利润统计系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>🛒 快手订单对账与利润统计系统</h1>
+            <p class="subtitle">对比官方订单与客服统计，自动发现漏单、计算利润</p>
+        </header>
+
+        <!-- 上传区域 -->
+        <section class="upload-section">
+            <div class="upload-grid">
+                <!-- 官方订单表上传 -->
+                <div class="upload-card">
+                    <h3>📄 官方订单表</h3>
+                    <p class="upload-hint">从快手后台导出的 Excel 文件</p>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="official-file" accept=".xlsx,.xls,.et" class="file-input">
+                        <label for="official-file" class="file-label">
+                            <span class="file-icon">📁</span>
+                            <span class="file-text">选择文件</span>
+                        </label>
+                    </div>
+                    <div id="official-info" class="file-info hidden">
+                        <span class="filename"></span>
+                        <span class="row-count"></span>
+                    </div>
+                    <div id="official-columns" class="column-mapping hidden">
+                        <h4>列映射配置</h4>
+                        <div class="mapping-row">
+                            <label>订单号列:</label>
+                            <select id="official-order"></select>
+                        </div>
+                        <div class="mapping-row">
+                            <label>状态列:</label>
+                            <select id="official-status"></select>
+                        </div>
+                        <div class="mapping-row">
+                            <label>商品名列:</label>
+                            <select id="official-product"></select>
+                        </div>
+                        <div class="mapping-row">
+                            <label>销售额列:</label>
+                            <select id="official-amount"></select>
+                        </div>
+                        <div class="mapping-row">
+                            <label>成本列:</label>
+                            <select id="official-cost"></select>
+                            <small class="hint">（可选，如客服表有可不填）</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 客服统计表上传 -->
+                <div class="upload-card">
+                    <h3>📝 客服手动统计表</h3>
+                    <p class="upload-hint">客服整理的 Excel 文件</p>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="customer-file" accept=".xlsx,.xls,.et" class="file-input">
+                        <label for="customer-file" class="file-label">
+                            <span class="file-icon">📁</span>
+                            <span class="file-text">选择文件</span>
+                        </label>
+                    </div>
+                    <div id="customer-info" class="file-info hidden">
+                        <span class="filename"></span>
+                        <span class="row-count"></span>
+                    </div>
+                    <div id="customer-columns" class="column-mapping hidden">
+                        <h4>列映射配置</h4>
+                        <div class="mapping-row">
+                            <label>订单号列:</label>
+                            <select id="customer-order"></select>
+                        </div>
+                        <div class="mapping-row">
+                            <label>商品名列:</label>
+                            <select id="customer-product"></select>
+                        </div>
+                        <div class="mapping-row">
+                            <label>销售额列:</label>
+                            <select id="customer-amount"></select>
+                        </div>
+                        <div class="mapping-row required">
+                            <label>成本列:</label>
+                            <select id="customer-cost"></select>
+                            <small class="hint">（必填，用于计算利润）</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 开始对比按钮 -->
+            <div class="action-area">
+                <button id="compare-btn" class="btn-primary" disabled>
+                    <span class="btn-icon">🔍</span>
+                    开始对比
+                </button>
+                <button id="export-btn" class="btn-secondary" disabled>
+                    <span class="btn-icon">📥</span>
+                    导出Excel
+                </button>
+            </div>
+        </section>
+
+        <!-- 进度提示 -->
+        <div id="progress-area" class="progress-area hidden">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <p class="progress-text">正在处理...</p>
+        </div>
+
+        <!-- 错误提示 -->
+        <div id="error-area" class="error-area hidden">
+            <span class="error-icon">⚠️</span>
+            <span class="error-text"></span>
+        </div>
+
+        <!-- 汇总统计 -->
+        <section id="summary-section" class="summary-section hidden">
+            <h2>📊 汇总统计</h2>
+            <div class="summary-grid">
+                <div class="summary-card sales">
+                    <div class="summary-label">总销售额</div>
+                    <div class="summary-value" id="summary-sales">¥0.00</div>
+                </div>
+                <div class="summary-card cost">
+                    <div class="summary-label">总成本</div>
+                    <div class="summary-value" id="summary-cost">¥0.00</div>
+                </div>
+                <div class="summary-card profit">
+                    <div class="summary-label">总利润</div>
+                    <div class="summary-value" id="summary-profit">¥0.00</div>
+                </div>
+                <div class="summary-card total">
+                    <div class="summary-label">订单总数</div>
+                    <div class="summary-value" id="summary-total">0</div>
+                </div>
+                <div class="summary-card normal">
+                    <div class="summary-label">正常订单</div>
+                    <div class="summary-value" id="summary-normal">0</div>
+                </div>
+                <div class="summary-card abnormal">
+                    <div class="summary-label">异常订单</div>
+                    <div class="summary-value" id="summary-abnormal">0</div>
+                </div>
+                <div class="summary-card missing">
+                    <div class="summary-label">客服漏记</div>
+                    <div class="summary-value" id="summary-missing">0</div>
+                </div>
+                <div class="summary-card extra">
+                    <div class="summary-label">客服有官方无</div>
+                    <div class="summary-value" id="summary-extra">0</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 结果表格 -->
+        <section id="result-section" class="result-section hidden">
+            <h2>📋 对账结果</h2>
+            <div class="table-controls">
+                <div class="filter-group">
+                    <label>显示:</label>
+                    <select id="filter-status">
+                        <option value="all">全部订单</option>
+                        <option value="normal">正常订单</option>
+                        <option value="abnormal">异常订单</option>
+                    </select>
+                </div>
+                <div class="search-group">
+                    <input type="text" id="search-input" placeholder="搜索订单号...">
+                    <button id="search-btn">🔍</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="result-table" class="result-table">
+                    <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>订单号</th>
+                            <th>商品名称</th>
+                            <th>销售额</th>
+                            <th>成本</th>
+                            <th>利润</th>
+                            <th>状态</th>
+                            <th>备注</th>
+                        </tr>
+                    </thead>
+                    <tbody id="result-tbody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination">
+            </div>
+        </section>
+
+        <!-- 使用说明 -->
+        <section class="help-section">
+            <h2>❓ 使用说明</h2>
+            <div class="help-content">
+                <ol>
+                    <li><strong>上传官方订单表</strong>：从快手后台导出的 Excel 文件，系统会自动识别订单号、状态、商品名、销售额等列。</li>
+                    <li><strong>上传客服统计表</strong>：客服手动整理的 Excel 文件，需要手动指定各列对应关系（订单号、商品名、销售额、成本）。</li>
+                    <li><strong>配置列映射</strong>：如果系统自动识别的列不正确，可以手动调整下拉框选择正确的列名。</li>
+                    <li><strong>开始对比</strong>：点击"开始对比"按钮，系统会自动处理数据、匹配订单、检测漏单、计算利润。</li>
+                    <li><strong>查看结果</strong>：预览对账结果，亏损订单会以红色标记，异常订单会有高亮提示。</li>
+                    <li><strong>导出报表</strong>：点击"导出Excel"按钮，下载整理后的标准财务报表。</li>
+                </ol>
+                <div class="help-tips">
+                    <h4>💡 温馨提示</h4>
+                    <ul>
+                        <li>支持 .xlsx 和 .xls 格式，WPS 的 .et 文件请另存为 .xlsx 后上传</li>
+                        <li>系统会自动去除订单号中的空格和特殊字符</li>
+                        <li>只统计"交易成功"和"已发货"状态的订单</li>
+                        <li>数据量支持 10 万条以内，处理速度取决于服务器性能</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <p>快手订单对账与利润统计系统 | 财务专用工具</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
