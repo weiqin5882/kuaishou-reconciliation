@@ -112,11 +112,9 @@ def process_official_data(df, column_mapping):
         # 去重（保留第一条）
         processed = processed.drop_duplicates(subset=['订单号'], keep='first')
         
-        # 状态过滤：只保留"交易成功"和"已发货"
-        valid_status = ['交易成功', '已发货', '成功', '发货']
-        processed = processed[
-            processed['原始状态'].apply(lambda x: any(s in x for s in valid_status))
-        ]
+        # 状态过滤：只保留完全等于"交易成功"或"已发货"的订单
+        valid_status = ['交易成功', '已发货']
+        processed = processed[processed['原始状态'].isin(valid_status)]
         
         return processed
     except Exception as e:
