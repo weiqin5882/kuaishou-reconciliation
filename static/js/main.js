@@ -4,24 +4,25 @@
 
 // 全局状态
 let state = {
-    officialFile: null,
+    flowFile: null,
     customerFile: null,
     resultData: [],
     summary: {},
+    duplicatesDetail: [],
     currentPage: 1,
     pageSize: 50,
     filteredData: [],
-    officialColumns: [],
+    flowColumns: [],
     customerColumns: []
 };
 
 // DOM 元素
 const elements = {
-    officialFile: document.getElementById('official-file'),
+    flowFile: document.getElementById('flow-file'),
     customerFile: document.getElementById('customer-file'),
-    officialInfo: document.getElementById('official-info'),
+    flowInfo: document.getElementById('flow-info'),
     customerInfo: document.getElementById('customer-info'),
-    officialColumns: document.getElementById('official-columns'),
+    flowColumns: document.getElementById('flow-columns'),
     customerColumns: document.getElementById('customer-columns'),
     compareBtn: document.getElementById('compare-btn'),
     exportBtn: document.getElementById('export-btn'),
@@ -29,6 +30,7 @@ const elements = {
     errorArea: document.getElementById('error-area'),
     errorText: document.querySelector('.error-text'),
     summarySection: document.getElementById('summary-section'),
+    duplicateAlert: document.getElementById('duplicate-alert'),
     resultSection: document.getElementById('result-section'),
     resultTbody: document.getElementById('result-tbody'),
     pagination: document.getElementById('pagination'),
@@ -49,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 function bindEvents() {
     // 文件上传
-    elements.officialFile.addEventListener('change', (e) => handleFileUpload(e, 'official'));
+    elements.flowFile.addEventListener('change', (e) => handleFileUpload(e, 'flow'));
     elements.customerFile.addEventListener('change', (e) => handleFileUpload(e, 'customer'));
     
     // 按钮事件
@@ -89,10 +91,10 @@ async function handleFileUpload(event, type) {
         
         if (data.success) {
             // 保存文件信息
-            if (type === 'official') {
-                state.officialFile = data;
-                showFileInfo('official', file.name, data.row_count);
-                showColumnMapping('official', data.columns, data.detected);
+            if (type === 'flow') {
+                state.flowFile = data;
+                showFileInfo('flow', file.name, data.row_count);
+                showColumnMapping('flow', data.columns, data.detected);
             } else {
                 state.customerFile = data;
                 showFileInfo('customer', file.name, data.row_count);
@@ -116,7 +118,7 @@ async function handleFileUpload(event, type) {
  * 显示文件信息
  */
 function showFileInfo(type, filename, rowCount) {
-    const infoEl = type === 'official' ? elements.officialInfo : elements.customerInfo;
+    const infoEl = type === 'flow' ? elements.flowInfo : elements.customerInfo;
     infoEl.querySelector('.filename').textContent = filename;
     infoEl.querySelector('.row-count').textContent = `${rowCount} 行数据`;
     infoEl.classList.remove('hidden');
@@ -126,39 +128,59 @@ function showFileInfo(type, filename, rowCount) {
  * 显示列映射配置
  */
 function showColumnMapping(type, columns, detected) {
-    const container = type === 'official' ? elements.officialColumns : elements.customerColumns;
+    const container = type === 'flow' ? elements.flowColumns : elements.customerColumns;
     
     // 填充下拉框
     const orderSelect = document.getElementById(`${type}-order`);
-    const statusSelect = document.getElementById(`${type}-status`);
     const productSelect = document.getElementById(`${type}-product`);
-    const amountSelect = document.getElementById(`${type}-amount`);
-    const costSelect = document.getElementById(`${type}-cost`);
     
     // 清空并填充选项
-    [orderSelect, productSelect, amountSelect].forEach(select => {
-        select.innerHTML = columns.map(col => 
-            `<option value="${col}">${col}</option>`
-        ).join('');
+    [orderSelect, productSelect].forEach(select => {
+        if (select) {
+            select.innerHTML = columns.map(col => 
+                `<option value="${col}">${col}</option>`
+            ).join('');
+        }
     });
     
-    if (type === 'official' && statusSelect) {
-        statusSelect.innerHTML = columns.map(col => 
-            `<option value="${col}">${col}</option>`
-        ).join('');
-    }
-    
-    if (costSelect) {
-        costSelect.innerHTML = '<option value="">-- 请选择 --</option>' + 
-            columns.map(col => `<option value="${col}">${col}</option>`).join('');
+    if (type === 'flow') {
+        // 订单流水表：实际结算金额
+        const settlementSelect = document.getElementById(`${type}-settlement`);
+        if (settlementSelect) {
+            settlementSelect.innerHTML = columns.map(col => 
+                `<option value="${col}">${col}</option>`
+            ).join('');
+        }
+    } else {
+        // 客服表：销售额和成本
+        const amountSelect = document.getElementById(`${type}-amount`);
+        const costSelect = document.getElementById(`${type}-cost`);
+        
+        if (amountSelect) {
+            amountSelect.innerHTML = columns.map(col => 
+                `<option value="${col}">${col}</option>`
+            ).join('');
+        }
+        
+        if (costSelect) {
+            costSelect.innerHTML = '<option value="">-- 请选择 --</option>' + 
+                columns.map(col => `<option value="${col}">${col}</option>`).join('');
+        }
     }
     
     // 设置自动检测的默认值
     if (orderSelect && detected.order_id) orderSelect.value = detected.order_id;
-    if (statusSelect && detected.status) statusSelect.value = detected.status;
     if (productSelect && detected.product) productSelect.value = detected.product;
-    if (amountSelect && detected.amount) amountSelect.value = detected.amount;
-    if (costSelect && detected.cost) costSelect.value = detected.cost;
+    
+    if (type === 'flow') {
+        const settlementSelect = document.getElementById(`${type}-settlement`);
+        if (settlementSelect && detected.settlement) settlementSelect.value = detected.settlement;
+    } else {
+        const amountSelect = document.getElementById(`${type}-amount`);
+        const costSelect = document.getElementById(`${type}-cost`);
+        if (amountSelect && detected.amount) amountSelect.value = detected.amount;
+        if (costSelect && detected.cost) costSelect.value = detected.cost;
+    }
     
     // 显示配置区域
     container.classList.remove('hidden');
@@ -170,13 +192,15 @@ function showColumnMapping(type, columns, detected) {
 function getColumnMapping(type) {
     const mapping = {
         order_id: document.getElementById(`${type}-order`).value,
-        product: document.getElementById(`${type}-product`).value,
-        amount: document.getElementById(`${type}-amount`).value,
-        cost: document.getElementById(`${type}-cost`)?.value || null
+        product: document.getElementById(`${type}-product`).value
     };
     
-    if (type === 'official') {
-        mapping.status = document.getElementById(`${type}-status`).value;
+    if (type === 'flow') {
+        mapping.settlement = document.getElementById(`${type}-settlement`).value;
+        mapping.amount = mapping.settlement; // 兼容
+    } else {
+        mapping.amount = document.getElementById(`${type}-amount`).value;
+        mapping.cost = document.getElementById(`${type}-cost`).value;
     }
     
     return mapping;
@@ -186,7 +210,7 @@ function getColumnMapping(type) {
  * 更新对比按钮状态
  */
 function updateCompareButton() {
-    const canCompare = state.officialFile && state.customerFile;
+    const canCompare = state.flowFile && state.customerFile;
     elements.compareBtn.disabled = !canCompare;
 }
 
@@ -195,15 +219,16 @@ function updateCompareButton() {
  */
 async function handleCompare() {
     hideError();
+    hideDuplicateAlert();
     showProgress('正在对比数据，请稍候...');
     
     // 获取列映射
-    const officialMapping = getColumnMapping('official');
+    const flowMapping = getColumnMapping('flow');
     const customerMapping = getColumnMapping('customer');
     
     // 验证必填项
-    if (!officialMapping.order_id || !officialMapping.status || !officialMapping.product || !officialMapping.amount) {
-        showError('请完整配置官方表的列映射');
+    if (!flowMapping.order_id || !flowMapping.product || !flowMapping.settlement) {
+        showError('请完整配置订单流水表的列映射（实际结算金额为必填）');
         hideProgress();
         return;
     }
@@ -221,9 +246,9 @@ async function handleCompare() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                official_file: state.officialFile.filepath,
+                flow_file: state.flowFile.filepath,
                 customer_file: state.customerFile.filepath,
-                official_mapping: officialMapping,
+                flow_mapping: flowMapping,
                 customer_mapping: customerMapping
             })
         });
@@ -233,6 +258,7 @@ async function handleCompare() {
         if (data.success) {
             state.resultData = data.data;
             state.summary = data.summary;
+            state.duplicatesDetail = data.duplicates_detail || [];
             state.filteredData = [...state.resultData];
             state.currentPage = 1;
             
@@ -243,7 +269,7 @@ async function handleCompare() {
             
             // 如果有重复订单，显示警告
             if (data.duplicates && data.duplicates.length > 0) {
-                showError(`检测到 ${data.duplicates.length} 个重复订单号，已自动去重`);
+                showDuplicateAlert(data.duplicates.length);
             }
         } else {
             showError(data.error);
@@ -259,7 +285,7 @@ async function handleCompare() {
  * 显示汇总统计
  */
 function showSummary(summary) {
-    document.getElementById('summary-sales').textContent = formatMoney(summary.total_sales);
+    document.getElementById('summary-settlement').textContent = formatMoney(summary.total_settlement);
     document.getElementById('summary-cost').textContent = formatMoney(summary.total_cost);
     document.getElementById('summary-profit').textContent = formatMoney(summary.total_profit);
     document.getElementById('summary-total').textContent = summary.total_orders;
@@ -267,8 +293,24 @@ function showSummary(summary) {
     document.getElementById('summary-abnormal').textContent = summary.abnormal_orders;
     document.getElementById('summary-missing').textContent = summary.missing_orders;
     document.getElementById('summary-extra').textContent = summary.extra_orders;
+    document.getElementById('summary-duplicate').textContent = summary.duplicate_orders || 0;
     
     elements.summarySection.classList.remove('hidden');
+}
+
+/**
+ * 显示重复订单警告
+ */
+function showDuplicateAlert(count) {
+    document.getElementById('duplicate-count').textContent = count;
+    elements.duplicateAlert.classList.remove('hidden');
+}
+
+/**
+ * 隐藏重复订单警告
+ */
+function hideDuplicateAlert() {
+    elements.duplicateAlert.classList.add('hidden');
 }
 
 /**
@@ -293,14 +335,19 @@ function renderTable() {
     elements.resultTbody.innerHTML = pageData.map((row, index) => {
         const isLoss = row.利润 < 0;
         const isAbnormal = row.状态 === '异常';
+        const isDuplicate = row.备注 && row.备注.includes('重复');
         const globalIndex = start + index + 1;
         
+        let rowClass = '';
+        if (isAbnormal) rowClass = 'abnormal';
+        if (isDuplicate) rowClass = 'duplicate';
+        
         return `
-            <tr class="${isAbnormal ? 'abnormal' : ''}">
+            <tr class="${rowClass}">
                 <td>${globalIndex}</td>
                 <td>${row.订单号}</td>
                 <td style="text-align: left;">${row.商品名称}</td>
-                <td>${formatMoney(row.销售额)}</td>
+                <td>${formatMoney(row.实际结算金额)}</td>
                 <td>${formatMoney(row.成本)}</td>
                 <td class="${isLoss ? 'loss' : ''}">${formatMoney(row.利润)}</td>
                 <td class="${isAbnormal ? 'status-abnormal' : 'status-normal'}">${row.状态}</td>
@@ -363,6 +410,8 @@ function handleFilter() {
         state.filteredData = state.resultData.filter(row => row.状态 === '正常');
     } else if (status === 'abnormal') {
         state.filteredData = state.resultData.filter(row => row.状态 === '异常');
+    } else if (status === 'duplicate') {
+        state.filteredData = state.resultData.filter(row => row.备注 && row.备注.includes('重复'));
     }
     
     state.currentPage = 1;
@@ -406,6 +455,7 @@ async function handleExport() {
             },
             body: JSON.stringify({
                 data: state.resultData,
+                duplicates_detail: state.duplicatesDetail,
                 summary: state.summary
             })
         });

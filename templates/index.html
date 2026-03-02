@@ -11,49 +11,41 @@
         <!-- 头部 -->
         <header class="header">
             <h1>🛒 快手订单对账与利润统计系统</h1>
-            <p class="subtitle">对比官方订单与客服统计，自动发现漏单、计算利润</p>
+            <p class="subtitle">对比订单流水与客服统计，自动发现漏单、计算利润</p>
         </header>
 
         <!-- 上传区域 -->
         <section class="upload-section">
             <div class="upload-grid">
-                <!-- 官方订单表上传 -->
+                <!-- 订单流水表上传 -->
                 <div class="upload-card">
-                    <h3>📄 官方订单表</h3>
-                    <p class="upload-hint">从快手后台导出的 Excel 文件</p>
+                    <h3>📄 订单流水表</h3>
+                    <p class="upload-hint">从快手后台导出的订单流水 Excel 文件<br><small>（状态为交易成功和已发货）</small></p>
                     <div class="file-input-wrapper">
-                        <input type="file" id="official-file" accept=".xlsx,.xls,.et" class="file-input">
-                        <label for="official-file" class="file-label">
+                        <input type="file" id="flow-file" accept=".xlsx,.xls,.et" class="file-input">
+                        <label for="flow-file" class="file-label">
                             <span class="file-icon">📁</span>
                             <span class="file-text">选择文件</span>
                         </label>
                     </div>
-                    <div id="official-info" class="file-info hidden">
+                    <div id="flow-info" class="file-info hidden">
                         <span class="filename"></span>
                         <span class="row-count"></span>
                     </div>
-                    <div id="official-columns" class="column-mapping hidden">
+                    <div id="flow-columns" class="column-mapping hidden">
                         <h4>列映射配置</h4>
                         <div class="mapping-row">
                             <label>订单号列:</label>
-                            <select id="official-order"></select>
-                        </div>
-                        <div class="mapping-row">
-                            <label>状态列:</label>
-                            <select id="official-status"></select>
+                            <select id="flow-order"></select>
                         </div>
                         <div class="mapping-row">
                             <label>商品名列:</label>
-                            <select id="official-product"></select>
+                            <select id="flow-product"></select>
                         </div>
-                        <div class="mapping-row">
-                            <label>销售额列:</label>
-                            <select id="official-amount"></select>
-                        </div>
-                        <div class="mapping-row">
-                            <label>成本列:</label>
-                            <select id="official-cost"></select>
-                            <small class="hint">（可选，如客服表有可不填）</small>
+                        <div class="mapping-row required">
+                            <label>实际结算金额列:</label>
+                            <select id="flow-settlement"></select>
+                            <small class="hint">（必填，用于计算利润）</small>
                         </div>
                     </div>
                 </div>
@@ -128,8 +120,8 @@
             <h2>📊 汇总统计</h2>
             <div class="summary-grid">
                 <div class="summary-card sales">
-                    <div class="summary-label">总销售额</div>
-                    <div class="summary-value" id="summary-sales">¥0.00</div>
+                    <div class="summary-label">总结算金额</div>
+                    <div class="summary-value" id="summary-settlement">¥0.00</div>
                 </div>
                 <div class="summary-card cost">
                     <div class="summary-label">总成本</div>
@@ -156,9 +148,21 @@
                     <div class="summary-value" id="summary-missing">0</div>
                 </div>
                 <div class="summary-card extra">
-                    <div class="summary-label">客服有官方无</div>
+                    <div class="summary-label">客服有流水无</div>
                     <div class="summary-value" id="summary-extra">0</div>
                 </div>
+                <div class="summary-card duplicate">
+                    <div class="summary-label">客服重复订单</div>
+                    <div class="summary-value" id="summary-duplicate">0</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 重复订单提示 -->
+        <section id="duplicate-alert" class="duplicate-alert hidden">
+            <div class="alert-content">
+                <span class="alert-icon">⚠️</span>
+                <span class="alert-text">检测到 <strong id="duplicate-count">0</strong> 个重复订单，已导出到Excel的"客服重复订单"工作表中</span>
             </div>
         </section>
 
@@ -172,6 +176,7 @@
                         <option value="all">全部订单</option>
                         <option value="normal">正常订单</option>
                         <option value="abnormal">异常订单</option>
+                        <option value="duplicate">重复订单</option>
                     </select>
                 </div>
                 <div class="search-group">
@@ -186,7 +191,7 @@
                             <th>序号</th>
                             <th>订单号</th>
                             <th>商品名称</th>
-                            <th>销售额</th>
+                            <th>实际结算金额</th>
                             <th>成本</th>
                             <th>利润</th>
                             <th>状态</th>
@@ -206,20 +211,21 @@
             <h2>❓ 使用说明</h2>
             <div class="help-content">
                 <ol>
-                    <li><strong>上传官方订单表</strong>：从快手后台导出的 Excel 文件，系统会自动识别订单号、状态、商品名、销售额等列。</li>
+                    <li><strong>上传订单流水表</strong>：从快手后台导出的订单流水 Excel 文件，系统会自动识别订单号、商品名、实际结算金额等列。</li>
                     <li><strong>上传客服统计表</strong>：客服手动整理的 Excel 文件，需要手动指定各列对应关系（订单号、商品名、销售额、成本）。</li>
                     <li><strong>配置列映射</strong>：如果系统自动识别的列不正确，可以手动调整下拉框选择正确的列名。</li>
                     <li><strong>开始对比</strong>：点击"开始对比"按钮，系统会自动处理数据、匹配订单、检测漏单、计算利润。</li>
-                    <li><strong>查看结果</strong>：预览对账结果，亏损订单会以红色标记，异常订单会有高亮提示。</li>
-                    <li><strong>导出报表</strong>：点击"导出Excel"按钮，下载整理后的标准财务报表。</li>
+                    <li><strong>查看结果</strong>：预览对账结果，亏损订单会以红色标记，异常订单会有高亮提示，重复订单会单独标记。</li>
+                    <li><strong>导出报表</strong>：点击"导出Excel"按钮，下载整理后的标准财务报表（包含重复订单明细sheet）。</li>
                 </ol>
                 <div class="help-tips">
                     <h4>💡 温馨提示</h4>
                     <ul>
                         <li>支持 .xlsx 和 .xls 格式，WPS 的 .et 文件请另存为 .xlsx 后上传</li>
                         <li>系统会自动去除订单号中的空格和特殊字符</li>
-                        <li>只统计"交易成功"和"已发货"状态的订单</li>
-                        <li>数据量支持 10 万条以内，处理速度取决于服务器性能</li>
+                        <li>订单流水表中的订单状态已限定为"交易成功"和"已发货"</li>
+                        <li>利润 = 订单流水表的实际结算金额 - 客服表的成本</li>
+                        <li>客服重复的订单会在结果中标记，并导出到单独的sheet中</li>
                     </ul>
                 </div>
             </div>
